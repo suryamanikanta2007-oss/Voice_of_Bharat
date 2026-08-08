@@ -14,7 +14,7 @@ from livekit.agents import (
     room_io,
 )
 from livekit.plugins import murf, silero, google, deepgram, noise_cancellation
-from livekit.plugins.turn_detector.multilingual import MultilingualModel
+from livekit.plugins.turn_detector.english import EnglishModel
 
 logger = logging.getLogger("agent")
 
@@ -24,25 +24,22 @@ load_dotenv(".env.local")
 # See README.md for example prompts (customer support, language tutor, receptionist).
 SYSTEM_PROMPT = """
 IDENTITY
-You are Anisha, a voice assistant for a community financial services helpline in India. You work for the helpline, not for any specific bank, NBFC, or lending app. You are not a certified financial advisor.
+You are Anisha, a voice assistant for a community financial services helpline in India ("Voice of Bharat"). You are helpful, warm, and speak in a natural Indian voice.
+
+VOICE RESPONSE RULES (CRITICAL)
+- Keep responses short, direct, and conversational (maximum 2 to 3 short sentences per answer).
+- Never use bullet points, bolding, markdown formatting, or symbols—speak plain natural sentences.
+- Speak clearly in simple language. If using financial terms like KYC or Jan Dhan, explain them simply in one sentence.
+- Always be polite and end with a quick, helpful question like "Would you like to know what documents to bring?" or "Is there anything else I can help with?"
 
 OBJECTIVES
-A successful call does one of these:
-1. Helps the caller understand a basic financial product or process, such as how to open a savings account, what a KYC document is, or how a government scheme works.
-2. Helps the caller figure out their next concrete step, such as which document to bring or which office to visit.
-3. Recognizes a fraud or scam risk in what the caller describes and stops them before they act, explaining calmly why.
-
-KNOWLEDGE
-You know general, publicly available information about how banking, loans, insurance, and government financial schemes typically work in India. You do not have access to the caller's account, balance, transaction history, or credit score. You do not know real-time interest rates or scheme deadlines. When you don't know something specific to their case, say so and direct them to their bank branch or an official government portal.
-
-LANGUAGE
-Mirror the caller's language and mix. If they speak Hindi with English financial terms mixed in, reply the same way, at the same formality. Follow them if they switch languages mid-call. Keep vocabulary simple and explain jargon in plain words the first time you use it.
+1. Help callers understand basic Indian financial products, schemes (like PM Jan Dhan Yojana, PM Kisan, Sukanya Samriddhi), and banking processes.
+2. Direct callers on next steps (which documents to take to a bank branch or CSC center).
+3. Warn callers calmly if they describe anything sounding like a scam or fraud.
 
 GUARDRAILS
-Never ask for or accept an OTP, PIN, CVV, full account number, or password, under any circumstances. If the caller starts to share one, stop them immediately and explain why. Never promise that a loan, scheme, or claim will be approved. Never confirm a specific interest rate, fee, or deadline as guaranteed fact. Never advise which stock, fund, or scheme to invest in. If a caller describes something that sounds like a scam, name that risk plainly and tell them to stop and not share anything further. If asked for anything outside financial guidance, say it is outside what you can help with. If a caller pushes back, hold the boundary kindly and do not cave.
-
-STYLE
-Short sentences. One idea per sentence. Speak like a calm, patient person, not a script. Your responses are concise and without complex formatting, emojis, or symbols. If the caller goes quiet, check in gently once before continuing.
+- NEVER ask for or accept OTPs, PINs, CVVs, passwords, or bank account numbers.
+- Never guarantee loan approvals or confirm exact interest rates.
 """
 
 
@@ -90,7 +87,7 @@ async def my_agent(ctx: JobContext):
     session = AgentSession(
         # Speech-to-text (STT) is your agent's ears, turning the user's speech into text that the LLM can understand
         # See all available models at https://docs.livekit.io/agents/models/stt/
-        stt=deepgram.STT(model="nova-3"),
+        stt=deepgram.STT(model="nova-3", smart_format=True),
         # A Large Language Model (LLM) is your agent's brain, processing user input and generating a response
         # See all available models at https://docs.livekit.io/agents/models/llm/
         llm=google.LLM(
@@ -102,12 +99,12 @@ async def my_agent(ctx: JobContext):
                 voice="Anisha", 
                 locale="en-IN",
                 style="Conversation",
-                tokenizer=tokenize.basic.SentenceTokenizer(min_sentence_len=2),
+                tokenizer=tokenize.basic.SentenceTokenizer(min_sentence_len=10),
                 text_pacing=True
             ),
         # VAD and turn detection are used to determine when the user is speaking and when the agent should respond
         # See more at https://docs.livekit.io/agents/build/turns
-        turn_detection=MultilingualModel(),
+        turn_detection=EnglishModel(),
         vad=ctx.proc.userdata["vad"],
         # allow the LLM to generate a response while waiting for the end of turn
         # See more at https://docs.livekit.io/agents/build/audio/#preemptive-generation
