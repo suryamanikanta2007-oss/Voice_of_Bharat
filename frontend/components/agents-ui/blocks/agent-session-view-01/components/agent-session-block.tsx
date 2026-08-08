@@ -12,6 +12,8 @@ import { Shimmer } from '@/components/ai-elements/shimmer';
 import { cn } from '@/lib/shadcn/utils';
 import { TileLayout } from './tile-view';
 
+import { AgentStateIndicator, type AgentDisplayState } from '@/components/agents-ui/agent-state-indicator';
+
 const MotionMessage = motion.create(Shimmer);
 
 const BOTTOM_VIEW_MOTION_PROPS: MotionProps = {
@@ -198,6 +200,17 @@ export function AgentSessionView_01({
     }
   }, [messages]);
 
+  const getDisplayState = (): AgentDisplayState => {
+    if (!session.isConnected) return 'connecting';
+    if (agentState === 'listening') return 'listening';
+    if (agentState === 'speaking') return 'speaking';
+    if (agentState === 'thinking' || agentState === 'initializing') return 'thinking';
+    if (agentState === 'connecting') return 'connecting';
+    return 'listening';
+  };
+
+  const displayState = getDisplayState();
+
   return (
     <section
       ref={ref}
@@ -205,6 +218,12 @@ export function AgentSessionView_01({
       {...props}
     >
       <Fade top className="absolute inset-x-4 top-0 z-10 h-40" />
+
+      {/* Persistent 5-State Indicator Header */}
+      <div className="absolute top-16 md:top-20 inset-x-0 z-40 flex justify-center px-4">
+        <AgentStateIndicator state={displayState} className="max-w-md w-full shadow-lg" />
+      </div>
+
       {/* transcript */}
 
       <div className="absolute top-0 bottom-[135px] flex w-full flex-col md:bottom-[170px]">
