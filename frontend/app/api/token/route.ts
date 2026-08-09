@@ -18,7 +18,7 @@ const AGENT_NAME = process.env.AGENT_NAME;
 // don't cache the results
 export const revalidate = 0;
 
-export async function POST(req: Request) {
+async function handleTokenRequest(req: Request) {
   try {
     if (LIVEKIT_URL === undefined) {
       throw new Error('LIVEKIT_URL is not defined');
@@ -30,23 +30,31 @@ export async function POST(req: Request) {
       throw new Error('LIVEKIT_API_SECRET is not defined');
     }
 
-    // Parse room config from request body (if provided).
-    const body = await req.json().catch(() => ({}));
+    // Parse room config from request body or query params (if provided).
+    let body: any = {};
+    if (req.method === 'POST') {
+      body = await req.json().catch(() => ({}));
+    } else if (req.method === 'GET') {
+      const { searchParams } = new URL(req.url);
+      body = {
+        participant_name: searchParams.get('participant_name') || undefined,
+        participant_identity: searchParams.get('participant_identity') || undefined,
+      };
+    }
+
     let roomConfig: RoomConfiguration | undefined;
     if (body?.room_config) {
       roomConfig = RoomConfiguration.fromJson(body.room_config, { ignoreUnknownFields: true });
     } else if (AGENT_NAME) {
-      // When AGENT_NAME is set, configure explicit agent dispatch so the named
-      // agent worker picks up the job when a user joins the room.
       roomConfig = RoomConfiguration.fromJson(
         { agents: [{ agentName: AGENT_NAME }] },
         { ignoreUnknownFields: true }
       );
     }
-      
-    // Generate participant token
-    const participantName = 'user';
-    const participantIdentity = `voice_assistant_user_${Math.floor(Math.random() * 10_000)}`;
+
+    // Use consistent participant identity for local web caller memory persistence
+    const participantName = body?.participant_name || 'user';
+    const participantIdentity = body?.participant_identity || 'caller_default_user';
     const roomName = `voice_assistant_room_${Math.floor(Math.random() * 10_000)}`;
 
     const participantToken = await createParticipantToken(
@@ -64,6 +72,7 @@ export async function POST(req: Request) {
     };
     const headers = new Headers({
       'Cache-Control': 'no-store',
+      'Access-Control-Allow-Origin': '*',
     });
     return NextResponse.json(data, { headers });
   } catch (error) {
@@ -71,10 +80,19 @@ export async function POST(req: Request) {
       console.error(error);
       return new NextResponse(error.message, { status: 500 });
     }
+    return new NextResponse('Internal server error', { status: 500 });
   }
 }
 
-function createParticipantToken(
+export async function GET(req: Request) {
+  return handleTokenRequest(req);
+}
+
+export async function POST(req: Request) {
+  return handleTokenRequest(req);
+}
+
+async function createParticipantToken(
   userInfo: AccessTokenOptions,
   roomName: string,
   roomConfig?: RoomConfiguration
@@ -96,5 +114,5 @@ function createParticipantToken(
     at.roomConfig = roomConfig;
   }
 
-  return at.toJwt();
+  return await at.toJwt();
 }
