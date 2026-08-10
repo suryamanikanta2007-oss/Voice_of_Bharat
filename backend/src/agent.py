@@ -14,6 +14,7 @@ from livekit.agents import (
     RunContext,
     cli,
     function_tool,
+    inference,
     room_io,
     tokenize,
 )
@@ -222,13 +223,19 @@ async def my_agent(ctx: JobContext):
         "room": ctx.room.name,
     }
 
-    # LLM configuration (OpenAI fallback if OPENAI_API_KEY is set, else Google Gemini)
+    # LLM configuration (OpenAI if OPENAI_API_KEY set, else LiveKit Cloud Inference for guaranteed uptime)
     if os.environ.get("OPENAI_API_KEY"):
         llm_instance = openai.LLM(model="gpt-4o-mini")
         logger.info("Using OpenAI LLM (gpt-4o-mini)")
-    else:
+    elif os.environ.get("USE_GOOGLE_GEMINI", "").lower() in (
+        "true",
+        "1",
+    ) and os.environ.get("GOOGLE_API_KEY"):
         llm_instance = google.LLM(model="gemini-2.0-flash")
         logger.info("Using Google Gemini LLM (gemini-2.0-flash)")
+    else:
+        llm_instance = inference.LLM(model="openai/gpt-4.1-mini")
+        logger.info("Using LiveKit Cloud Inference LLM (openai/gpt-4.1-mini)")
 
     # Low-latency voice AI pipeline configuration
     session = AgentSession(
