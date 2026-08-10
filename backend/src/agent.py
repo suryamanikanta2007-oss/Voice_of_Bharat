@@ -316,14 +316,14 @@ async def my_agent(ctx: JobContext):
         try:
             session.generate_reply(instructions=greeting_instructions)
         except Exception as e:
-            logger.debug(f"Could not generate initial greeting reply: {e}")
+            logger.error(f"Could not generate initial greeting reply: {e}")
     else:
         try:
             session.generate_reply(
                 instructions="Greet the caller warmly in plain conversational sentences and introduce yourself as Anisha from Voice of Bharat."
             )
         except Exception as e:
-            logger.debug(f"Could not generate initial greeting reply: {e}")
+            logger.error(f"Could not generate initial greeting reply: {e}")
 
 
 if __name__ == "__main__":

@@ -31,3 +31,5 @@ if (Test-CommandExists "pnpm") {
 }
 
 Write-Host "Started backend and frontend in separate PowerShell windows."
+Write-Host ""
+Write-Host "IMPORTANT: Please wait ~30 seconds for the backend PowerShell window to display 'registered worker' before clicking 'Start Call' at http://localhost:3000!" -ForegroundColor Yellow
