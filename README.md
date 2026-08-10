@@ -229,14 +229,28 @@ Murf Falcon and LiveKit handle audio format internally. For advanced options, se
 
 ---
 
+## Day 5 – The Tools (Financial Services Track)
+
+`Voice of Bharat` is equipped with a domain tool `check_scheme_eligibility_and_docs` (`backend/src/scheme_data.py` & `backend/src/agent.py`):
+
+1. **Domain Lookup**: Evaluates official eligibility criteria, benefits, and required document checklists for Indian government financial schemes (PM Kisan, PM Jan Dhan Yojana, Sukanya Samriddhi, Atal Pension Yojana, PM Mudra Loan, PM Suraksha Bima).
+2. **Dataset Disclosure**: Uses a verified hand-built local dataset (`backend/src/scheme_data.py`) derived from official Indian government scheme portals.
+3. **Timestamped Data (Recency)**: Every tool response contains recency metadata (`data_as_of: "August 10, 2026 (Official Portal Records)"`). The system prompt instructs the agent to announce when the data is from out loud.
+4. **Out-Loud Failure Path**: Server and portal timeouts are caught (`status: TIMEOUT_FALLBACK` / `simulate_timeout=True`), returning `spoken_guidance` so the agent explicitly tells the caller out loud that the live portal connection timed out before falling back to verified records.
+5. **Automated Testing**: Run `$env:PYTHONIOENCODING="utf-8"; uv run python tests/test_day5_tools.py` in `backend/` to execute the Day 5 test suite.
+
+---
+
 ## Project Structure
 
 ```
 murf-livekit-starter/
 ├── backend/                 # Python voice agent (LiveKit Agents + Murf Falcon)
 │   ├── src/
-│   │   └── agent.py         # Agent entrypoint, pipeline (STT/LLM/TTS), system prompt
-│   ├── tests/               # Agent tests
+│   │   ├── agent.py         # Agent entrypoint, pipeline, system prompt, tools
+│   │   ├── db.py            # Caller memory & SQLite storage
+│   │   └── scheme_data.py   # Scheme dataset & eligibility logic (Day 5 Tool)
+│   ├── tests/               # Agent tests (pytest)
 │   ├── .env.example         # Backend env template
 │   ├── pyproject.toml       # Python deps (uv)
 │   └── railway.toml         # Railway deploy config

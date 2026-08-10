@@ -20,6 +20,7 @@ from livekit.plugins import deepgram, google, murf, noise_cancellation, silero
 from livekit.plugins.turn_detector.english import EnglishModel
 
 from db import get_caller, init_db, save_caller
+from scheme_data import DATA_AS_OF, evaluate_eligibility
 
 logger = logging.getLogger("agent")
 
@@ -37,6 +38,12 @@ VOICE RESPONSE RULES (CRITICAL)
 - Speak clearly in simple language. If using financial terms like KYC or Jan Dhan, explain them simply in one sentence.
 - Always be polite and end with a quick, helpful question like "Would you like to know what documents to bring?" or "Is there anything else I can help with?"
 - Understand Indian English accents, local terms, and Speech-to-Text transcription variations smoothly (e.g., Kisan/Kishan, Jan Dhan/Jan Dan).
+
+SCHEME ELIGIBILITY & DOCUMENT CHECKLIST TOOL (CRITICAL DAY 5 TOOL)
+- When a caller asks about ANY government scheme eligibility, document checklist, benefits, or interest rates (e.g. PM Kisan, Jan Dhan, Sukanya Samriddhi, Atal Pension, Mudra Loan):
+  1. Immediately call `check_scheme_eligibility_and_docs` to fetch real domain data and exact document lists.
+  2. Always state when the data is from in your response (e.g. "According to official records updated as of August 2026...").
+  3. Speak out loud if a network delay or timeout fallback occurred (e.g. "The live portal connection timed out, but based on our August 2026 records...").
 
 CALLER MEMORY & LAST CONVERSATION RECALL (CRITICAL)
 - If the caller asks ANY question about previous calls (such as "What did we discuss in our last conversation?", "What did I say last time?", "Do you remember me?", "What schemes did we check before?"):
@@ -66,6 +73,59 @@ GUARDRAILS (HARD RULE)
 class Assistant(Agent):
     def __init__(self) -> None:
         super().__init__(instructions=SYSTEM_PROMPT)
+
+    @function_tool
+    async def check_scheme_eligibility_and_docs(
+        self,
+        context: RunContext,
+        scheme_name: str,
+        applicant_age: int | None = None,
+        annual_income_inr: float | None = None,
+        occupation_category: str | None = None,
+        is_landowner: bool | None = None,
+        child_gender: str | None = None,
+        child_age: int | None = None,
+        simulate_timeout: bool | None = False,
+    ) -> str:
+        """Check official eligibility criteria, required document checklist, and benefits for Indian government financial schemes.
+
+        CRITICAL FINANCIAL TOOL: Call this tool whenever a caller asks if they qualify for a scheme
+        (e.g., PM Kisan, Sukanya Samriddhi, Jan Dhan, Atal Pension, PM Mudra Loan, PM Suraksha Bima),
+        asks what documents to bring to the bank or CSC center, or asks for current rates or benefits.
+
+        Args:
+            scheme_name: Name or alias of the financial scheme (e.g. 'PM Kisan', 'Sukanya Samriddhi', 'Jan Dhan', 'Atal Pension', 'Mudra Loan').
+            applicant_age: Age of the applicant in years, if known.
+            annual_income_inr: Annual household income in Indian Rupees, if known.
+            occupation_category: Occupation or category (e.g. 'farmer', 'unorganized worker', 'small business').
+            is_landowner: True if the applicant owns agricultural land; False otherwise.
+            child_gender: Gender of child if checking girl child schemes like Sukanya Samriddhi ('female' or 'male').
+            child_age: Age of child in years if checking Sukanya Samriddhi.
+            simulate_timeout: Set to True ONLY IF testing network/portal timeout failure handling out loud.
+        """
+        logger.info(f"Checking scheme eligibility/docs for: {scheme_name}")
+        try:
+            result = evaluate_eligibility(
+                scheme_query=scheme_name,
+                applicant_age=applicant_age,
+                annual_income_inr=annual_income_inr,
+                occupation_category=occupation_category,
+                is_landowner=is_landowner,
+                child_gender=child_gender,
+                child_age=child_age,
+                simulate_timeout=simulate_timeout,
+            )
+            return json.dumps(result, indent=2)
+        except Exception as e:
+            logger.error(f"Error checking scheme eligibility: {e}")
+            fallback_response = {
+                "status": "TIMEOUT_FALLBACK",
+                "scheme_name": scheme_name,
+                "message": "Live government portal request timed out. Using verified offline records as of August 2026.",
+                "spoken_guidance": "Tell the caller out loud that live portal lookup timed out, but state the standard required documents (Aadhaar, Bank Account, Photo ID) based on August 2026 records.",
+                "data_as_of": DATA_AS_OF,
+            }
+            return json.dumps(fallback_response, indent=2)
 
     @function_tool
     async def get_caller_info(self, context: RunContext, user_id: str) -> str:

@@ -10,8 +10,8 @@ if (-not (Test-CommandExists "uv")) {
   Write-Error "Missing required command: uv"
 }
 
-if (-not (Test-CommandExists "pnpm")) {
-  Write-Error "Missing required command: pnpm"
+if (-not (Test-CommandExists "pnpm") -and -not (Test-CommandExists "npm") -and -not (Test-CommandExists "npx")) {
+  Write-Error "Missing required package manager (pnpm, npm, or npx)"
 }
 
 $repoRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -24,6 +24,10 @@ if (Test-CommandExists "livekit-server") {
 }
 
 Start-Process powershell -ArgumentList "-NoExit", "-Command", "Set-Location '$repoRoot\backend'; uv run python src/agent.py dev"
-Start-Process powershell -ArgumentList "-NoExit", "-Command", "Set-Location '$repoRoot\frontend'; pnpm dev"
+if (Test-CommandExists "pnpm") {
+  Start-Process powershell -ArgumentList "-NoExit", "-Command", "Set-Location '$repoRoot\frontend'; pnpm dev"
+} else {
+  Start-Process powershell -ArgumentList "-NoExit", "-Command", "Set-Location '$repoRoot\frontend'; npm run dev"
+}
 
 Write-Host "Started backend and frontend in separate PowerShell windows."

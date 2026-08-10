@@ -176,7 +176,21 @@ Default is Google Gemini. To switch:
 - **Gemini (default):** Set `GOOGLE_API_KEY` in `.env.local`
 - **OpenAI:** Set `OPENAI_API_KEY`, install `livekit-agents[openai]`, and change the `llm=` argument
 
-## Testing
+---
+
+## Day 5 – Real Domain Data & Tools (Financial Services Track)
+
+The agent incorporates real domain financial lookup capabilities via the `check_scheme_eligibility_and_docs` tool:
+
+- **Primary Lookup**: Government financial scheme eligibility verification, benefits computation, and official document checklist retrieval for PM Kisan, Jan Dhan Yojana, Sukanya Samriddhi, Atal Pension Yojana, PM Mudra Loan, and PM Suraksha Bima.
+- **Data Source**: Hand-built verified dataset (`src/scheme_data.py`) derived from official Indian government scheme portals.
+- **Data Timestamp**: Returns recency metadata (`data_as_of: "August 10, 2026 (Official Portal Records)"`). The system prompt directs the agent to mention when the data is from when answering callers.
+- **Failure Path Handling**: Includes timeout and exception catching (`status: TIMEOUT_FALLBACK` / `simulate_timeout=True`). If a live portal lookup fails or times out, the agent is instructed to inform the caller out loud about the server delay and provide cached August 2026 records.
+
+```bash
+# Test Day 5 tool functionality
+$env:PYTHONIOENCODING="utf-8"; uv run python tests/test_day5_tools.py
+```
 
 The project includes an eval suite based on the LiveKit Agents [testing framework](https://docs.livekit.io/agents/build/testing/):
 

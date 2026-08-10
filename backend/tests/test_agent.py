@@ -1,11 +1,50 @@
+import json
+
 import pytest
 from livekit.agents import AgentSession, inference, llm
 
 from agent import Assistant
+from scheme_data import DATA_AS_OF, evaluate_eligibility
 
 
 def _llm() -> llm.LLM:
     return inference.LLM(model="openai/gpt-4.1-mini")
+
+
+def test_evaluate_eligibility_logic() -> None:
+    """Test deterministic scheme eligibility lookup and document checklist generator."""
+    # Test PM Kisan eligibility with landholding
+    res_kisan = evaluate_eligibility("PM Kisan", is_landowner=True)
+    assert res_kisan["status"] == "ELIGIBLE"
+    assert "Aadhaar Card" in res_kisan["required_documents"]
+    assert res_kisan["data_as_of"] == DATA_AS_OF
+
+    # Test Sukanya Samriddhi with male child
+    res_ssy = evaluate_eligibility("Sukanya Samriddhi", child_gender="male")
+    assert res_ssy["status"] == "INELIGIBLE"
+    assert any("girl child" in reason for reason in res_ssy["reasons"])
+
+    # Test unknown scheme
+    res_unknown = evaluate_eligibility("NonExistentScheme")
+    assert res_unknown["status"] == "NOT_FOUND"
+
+
+@pytest.mark.asyncio
+async def test_agent_tool_direct_call() -> None:
+    """Test Assistant tool method check_scheme_eligibility_and_docs directly."""
+    assistant = Assistant()
+    tool_output = await assistant.check_scheme_eligibility_and_docs(
+        context=None,  # type: ignore
+        scheme_name="Jan Dhan Yojana",
+        applicant_age=25,
+    )
+    parsed = json.loads(tool_output)
+    assert parsed["status"] == "ELIGIBLE"
+    assert (
+        "Aadhaar Card OR Voter ID OR Driving License OR Job Card issued by NREGA"
+        in parsed["required_documents"]
+    )
+    assert parsed["data_as_of"] == DATA_AS_OF
 
 
 @pytest.mark.asyncio
