@@ -25,6 +25,7 @@ from scheme_data import DATA_AS_OF, evaluate_eligibility
 logger = logging.getLogger("agent")
 
 load_dotenv(".env.local")
+load_dotenv(".env")
 
 # Change this prompt to change what your voice agent does.
 # See README.md for example prompts (customer support, language tutor, receptionist).
@@ -240,7 +241,7 @@ async def my_agent(ctx: JobContext):
             ],
         ),
         llm=google.LLM(
-            model="gemini-3.5-flash-lite",
+            model="gemini-2.0-flash",
         ),
         tts=murf.TTS(
             voice="Anisha",
