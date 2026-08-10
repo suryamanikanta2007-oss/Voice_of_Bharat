@@ -1,5 +1,6 @@
 import json
 import logging
+import os
 from typing import Any
 
 from dotenv import load_dotenv
@@ -16,7 +17,7 @@ from livekit.agents import (
     room_io,
     tokenize,
 )
-from livekit.plugins import deepgram, google, murf, noise_cancellation, silero
+from livekit.plugins import deepgram, google, murf, noise_cancellation, openai, silero
 from livekit.plugins.turn_detector.english import EnglishModel
 
 from db import get_caller, init_db, save_caller
@@ -221,6 +222,14 @@ async def my_agent(ctx: JobContext):
         "room": ctx.room.name,
     }
 
+    # LLM configuration (OpenAI fallback if OPENAI_API_KEY is set, else Google Gemini)
+    if os.environ.get("OPENAI_API_KEY"):
+        llm_instance = openai.LLM(model="gpt-4o-mini")
+        logger.info("Using OpenAI LLM (gpt-4o-mini)")
+    else:
+        llm_instance = google.LLM(model="gemini-2.0-flash")
+        logger.info("Using Google Gemini LLM (gemini-2.0-flash)")
+
     # Low-latency voice AI pipeline configuration
     session = AgentSession(
         stt=deepgram.STT(
@@ -240,9 +249,7 @@ async def my_agent(ctx: JobContext):
                 "Priya",
             ],
         ),
-        llm=google.LLM(
-            model="gemini-2.0-flash",
-        ),
+        llm=llm_instance,
         tts=murf.TTS(
             voice="Anisha",
             locale="en-IN",
