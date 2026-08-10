@@ -1,15 +1,20 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useTheme } from 'next-themes';
 import { AnimatePresence, motion } from 'motion/react';
-import { useSessionContext, useAgent } from '@livekit/components-react';
-import { PhoneDisconnectIcon, ArrowClockwiseIcon, SpinnerIcon, ShieldCheckIcon } from '@phosphor-icons/react';
+import { useAgent, useSessionContext } from '@livekit/components-react';
+import {
+  ArrowClockwiseIcon,
+  PhoneDisconnectIcon,
+  ShieldCheckIcon,
+  SpinnerIcon,
+} from '@phosphor-icons/react';
 import type { AppConfig } from '@/app-config';
-import { AgentSessionView_01 } from '@/components/agents-ui/blocks/agent-session-view-01';
-import { WelcomeView } from '@/components/app/welcome-view';
 import { AgentStateIndicator } from '@/components/agents-ui/agent-state-indicator';
+import { AgentSessionView_01 } from '@/components/agents-ui/blocks/agent-session-view-01';
 import { MicErrorModal } from '@/components/agents-ui/mic-error-modal';
+import { WelcomeView } from '@/components/app/welcome-view';
 import { Button } from '@/components/ui/button';
 
 const MotionWelcomeView = motion.create(WelcomeView);
@@ -66,14 +71,15 @@ export function ViewController({ appConfig }: ViewControllerProps) {
         await navigator.mediaDevices.getUserMedia({ audio: true });
       }
       await start();
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.warn('Microphone permission check error:', err);
       setIsConnecting(false);
+      const errorObj = err as { name?: string; message?: string };
       if (
-        err?.name === 'NotAllowedError' ||
-        err?.name === 'PermissionDeniedError' ||
-        err?.message?.includes('Permission denied') ||
-        err?.message?.includes('Permission dismissed')
+        errorObj?.name === 'NotAllowedError' ||
+        errorObj?.name === 'PermissionDeniedError' ||
+        errorObj?.message?.includes('Permission denied') ||
+        errorObj?.message?.includes('Permission dismissed')
       ) {
         setMicError(true);
       } else {
@@ -99,12 +105,12 @@ export function ViewController({ appConfig }: ViewControllerProps) {
   const isHi = lang === 'hi';
 
   return (
-    <div className="relative h-svh w-full overflow-hidden bg-background">
+    <div className="bg-background relative h-svh w-full overflow-hidden">
       {/* Top Bar Language Switcher */}
       <div className="fixed top-4 right-4 z-50 flex items-center gap-2">
         <button
           onClick={toggleLanguage}
-          className="px-3 py-1.5 rounded-full bg-card/80 hover:bg-card border border-border/40 text-xs font-semibold text-foreground shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
+          className="bg-card/80 hover:bg-card border-border/40 text-foreground flex cursor-pointer items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold shadow-xs transition-all"
         >
           <span>🌐</span>
           <span>{lang === 'en' ? 'हिंदी में बदलें' : 'Switch to English'}</span>
@@ -137,21 +143,21 @@ export function ViewController({ appConfig }: ViewControllerProps) {
           <motion.div
             key="connecting-screen"
             {...VIEW_MOTION_PROPS}
-            className="fixed inset-0 z-40 flex flex-col items-center justify-center p-6 text-center bg-background/90 backdrop-blur-lg"
+            className="bg-background/90 fixed inset-0 z-40 flex flex-col items-center justify-center p-6 text-center backdrop-blur-lg"
           >
             <div className="relative mb-6">
-              <div className="flex size-20 items-center justify-center rounded-3xl bg-amber-500/10 text-amber-500 border border-amber-500/30 shadow-xl">
+              <div className="flex size-20 items-center justify-center rounded-3xl border border-amber-500/30 bg-amber-500/10 text-amber-500 shadow-xl">
                 <SpinnerIcon className="size-10 animate-spin" />
               </div>
               <span className="absolute -top-1 -right-1 flex size-4">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full size-4 bg-amber-500"></span>
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-75"></span>
+                <span className="relative inline-flex size-4 rounded-full bg-amber-500"></span>
               </span>
             </div>
 
-            <AgentStateIndicator state="connecting" lang={lang} className="max-w-sm mb-4" />
+            <AgentStateIndicator state="connecting" lang={lang} className="mb-4 max-w-sm" />
 
-            <p className="text-xs text-muted-foreground max-w-xs mt-2 leading-relaxed">
+            <p className="text-muted-foreground mt-2 max-w-xs text-xs leading-relaxed">
               {isHi
                 ? 'मर्फ़ फाल्कन टीटीएस वॉइस इंजन एवं लाइवकिट सर्वर के साथ ऑडियो कनेक्शन जोड़ा जा रहा है...'
                 : 'Establishing secure audio stream with Murf Falcon TTS voice engine...'}
@@ -190,19 +196,19 @@ export function ViewController({ appConfig }: ViewControllerProps) {
           <motion.div
             key="call-ended-screen"
             {...VIEW_MOTION_PROPS}
-            className="fixed inset-0 z-40 flex flex-col items-center justify-center p-6 text-center bg-background/95 backdrop-blur-md"
+            className="bg-background/95 fixed inset-0 z-40 flex flex-col items-center justify-center p-6 text-center backdrop-blur-md"
           >
-            <div className="flex size-20 items-center justify-center rounded-3xl bg-rose-500/10 text-rose-500 border border-rose-500/20 shadow-xl mb-6">
+            <div className="mb-6 flex size-20 items-center justify-center rounded-3xl border border-rose-500/20 bg-rose-500/10 text-rose-500 shadow-xl">
               <PhoneDisconnectIcon className="size-10" />
             </div>
 
-            <AgentStateIndicator state="disconnected" lang={lang} className="max-w-sm mb-6" />
+            <AgentStateIndicator state="disconnected" lang={lang} className="mb-6 max-w-sm" />
 
-            <div className="p-6 rounded-3xl bg-card border border-border/50 max-w-sm w-full space-y-4 shadow-lg text-center">
-              <h3 className="font-bold text-lg text-foreground">
+            <div className="bg-card border-border/50 w-full max-w-sm space-y-4 rounded-3xl border p-6 text-center shadow-lg">
+              <h3 className="text-foreground text-lg font-bold">
                 {isHi ? 'बातचीत समाप्त हो गई' : 'Conversation Ended'}
               </h3>
-              <p className="text-xs text-muted-foreground leading-relaxed">
+              <p className="text-muted-foreground text-xs leading-relaxed">
                 {isHi
                   ? 'वॉइस ऑफ भारत हेल्पलाइन का उपयोग करने के लिए धन्यवाद। क्या आपके पास कोई अन्य वित्तीय प्रश्न है?'
                   : 'Thank you for consulting Voice of Bharat Financial Helpline. Do you have any further questions?'}
@@ -212,7 +218,7 @@ export function ViewController({ appConfig }: ViewControllerProps) {
                 <Button
                   size="lg"
                   onClick={handleStartNewCall}
-                  className="w-full rounded-full bg-linear-to-r from-amber-500 to-emerald-600 hover:from-amber-600 hover:to-emerald-700 text-white font-bold text-sm shadow-md gap-2"
+                  className="w-full gap-2 rounded-full bg-linear-to-r from-amber-500 to-emerald-600 text-sm font-bold text-white shadow-md hover:from-amber-600 hover:to-emerald-700"
                 >
                   <ArrowClockwiseIcon className="size-5" weight="bold" />
                   <span>{isHi ? 'नया सत्र शुरू करें' : 'Start New Session'}</span>
@@ -220,7 +226,7 @@ export function ViewController({ appConfig }: ViewControllerProps) {
               </div>
             </div>
 
-            <div className="mt-8 flex items-center gap-2 text-xs text-muted-foreground">
+            <div className="text-muted-foreground mt-8 flex items-center gap-2 text-xs">
               <ShieldCheckIcon className="size-4 text-emerald-500" />
               <span>Voice of Bharat • Powered by Murf Falcon TTS</span>
             </div>

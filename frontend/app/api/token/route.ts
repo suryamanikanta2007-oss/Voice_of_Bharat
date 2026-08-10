@@ -30,7 +30,7 @@ async function handleTokenRequest(req: Request) {
       throw new Error('LIVEKIT_API_SECRET is not defined');
     }
 
-    // Parse room config from request body or query params (if provided).
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let body: any = {};
     if (req.method === 'POST') {
       body = await req.json().catch(() => ({}));

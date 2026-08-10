@@ -35,7 +35,8 @@ export interface AppConfig {
 export const APP_CONFIG_DEFAULTS: AppConfig = {
   companyName: 'Voice of Bharat',
   pageTitle: 'Voice of Bharat — Community Financial Services Helpline',
-  pageDescription: 'AI Voice Helpline for Indian Government Financial Schemes, Banking Literacy, and Fraud Awareness. Powered by Murf Falcon TTS.',
+  pageDescription:
+    'AI Voice Helpline for Indian Government Financial Schemes, Banking Literacy, and Fraud Awareness. Powered by Murf Falcon TTS.',
 
   supportsChatInput: true,
   supportsVideoInput: false,
