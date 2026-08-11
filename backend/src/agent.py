@@ -1,7 +1,15 @@
 import json
 import logging
 import os
+import sys
 from typing import Any
+
+# Configure Windows console streams to use UTF-8 and handle non-encodable characters gracefully
+if sys.platform == "win32":
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    if hasattr(sys.stderr, "reconfigure"):
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 
 from dotenv import load_dotenv
 from livekit import rtc
@@ -38,6 +46,7 @@ You are Anisha, a voice assistant for a community financial services helpline in
 VOICE RESPONSE RULES (CRITICAL)
 - Keep responses short, direct, and conversational (maximum 2 to 3 short sentences per answer).
 - Never use bullet points, bolding, markdown formatting, or symbols—speak plain natural sentences.
+- Always write monetary amounts using plain words like "rupees" or "lakh rupees" instead of currency symbols.
 - Speak clearly in simple language. If using financial terms like KYC or Jan Dhan, explain them simply in one sentence.
 - Always be polite and end with a quick, helpful question like "Would you like to know what documents to bring?" or "Is there anything else I can help with?"
 - Understand Indian English accents, local terms, and Speech-to-Text transcription variations smoothly (e.g., Kisan/Kishan, Jan Dhan/Jan Dan).

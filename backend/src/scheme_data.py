@@ -10,7 +10,7 @@ SCHEMES_DATABASE: dict[str, dict[str, Any]] = {
         "scheme_name": "Pradhan Mantri Kisan Samman Nidhi (PM-KISAN)",
         "aliases": ["pm kisan", "kisan samman", "pm-kisan", "farmer scheme"],
         "category": "Agriculture & Farmers",
-        "benefits": "₹6,000 per year directly transferred to bank accounts in 3 equal installments of ₹2,000 every 4 months.",
+        "benefits": "6000 Rupees per year directly transferred to bank accounts in 3 equal installments of 2000 Rupees every 4 months.",
         "documents_required": [
             "Aadhaar Card",
             "Landholding ownership documents (Khasra/Khatauni)",
@@ -28,7 +28,7 @@ SCHEMES_DATABASE: dict[str, dict[str, Any]] = {
         "scheme_name": "Pradhan Mantri Jan Dhan Yojana (PMJDY)",
         "aliases": ["jan dhan", "pmjdy", "jan dhan yojana", "zero balance account"],
         "category": "Banking & Financial Inclusion",
-        "benefits": "Zero balance savings account, free RuPay debit card with ₹2 Lakh accidental insurance cover, and ₹10,000 overdraft facility after 6 months of satisfactory account operation.",
+        "benefits": "Zero balance savings account, free RuPay debit card with 2 Lakh Rupees accidental insurance cover, and 10000 Rupees overdraft facility after 6 months of satisfactory account operation.",
         "documents_required": [
             "Aadhaar Card OR Voter ID OR Driving License OR Job Card issued by NREGA",
             "Two recent passport size photographs",
@@ -55,8 +55,8 @@ SCHEMES_DATABASE: dict[str, dict[str, Any]] = {
             "target_gender": "female",
             "max_child_age": 10,
             "limit_per_family": "Maximum 2 girl children per family (exceptions for twins/triplets)",
-            "min_deposit_annual": "₹250 per financial year",
-            "max_deposit_annual": "₹1,500,000 per financial year",
+            "min_deposit_annual": "250 Rupees per financial year",
+            "max_deposit_annual": "1500000 Rupees per financial year",
         },
         "last_updated": DATA_AS_OF,
     },
@@ -64,7 +64,7 @@ SCHEMES_DATABASE: dict[str, dict[str, Any]] = {
         "scheme_name": "Atal Pension Yojana (APY)",
         "aliases": ["atal pension", "apy", "pension scheme"],
         "category": "Pension & Social Security",
-        "benefits": "Guaranteed monthly pension between ₹1,000 and ₹5,000 per month starting at age 60, based on monthly contribution amount.",
+        "benefits": "Guaranteed monthly pension between 1000 Rupees and 5000 Rupees per month starting at age 60, based on monthly contribution amount.",
         "documents_required": [
             "Aadhaar Card",
             "Savings bank account number linked with mobile number",
@@ -80,7 +80,7 @@ SCHEMES_DATABASE: dict[str, dict[str, Any]] = {
         "scheme_name": "Pradhan Mantri MUDRA Yojana (PMMY)",
         "aliases": ["pm mudra", "mudra loan", "mudra yojana", "business loan"],
         "category": "Micro Enterprise Credit",
-        "benefits": "Collateral-free micro loans: Shishu (up to ₹50,000), Kishor (₹50,000 to ₹5 Lakh), and Tarun (₹5 Lakh to ₹10 Lakh) with attractive bank interest rates.",
+        "benefits": "Collateral-free micro loans: Shishu (up to 50000 Rupees), Kishor (50000 Rupees to 5 Lakh Rupees), and Tarun (5 Lakh Rupees to 10 Lakh Rupees) with attractive bank interest rates.",
         "documents_required": [
             "Aadhaar Card and PAN Card",
             "Proof of business address and registration/license",
@@ -97,7 +97,7 @@ SCHEMES_DATABASE: dict[str, dict[str, Any]] = {
         "scheme_name": "Pradhan Mantri Suraksha Bima Yojana (PMSBY)",
         "aliases": ["suraksha bima", "pmsby", "accident insurance"],
         "category": "Accident Insurance",
-        "benefits": "Accidental death and full disability cover of ₹2 Lakh (partial disability ₹1 Lakh) for a premium of just ₹20 per year auto-debited from bank account.",
+        "benefits": "Accidental death and full disability cover of 2 Lakh Rupees (partial disability 1 Lakh Rupees) for a premium of just 20 Rupees per year auto-debited from bank account.",
         "documents_required": [
             "Aadhaar Card",
             "Savings bank account with auto-debit facility enabled",
