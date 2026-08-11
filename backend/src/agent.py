@@ -247,10 +247,10 @@ async def my_agent(ctx: JobContext):
     # Low-latency voice AI pipeline configuration
     session = AgentSession(
         stt=deepgram.STT(
-            model="nova-2-general",
-            language="en-IN",
+            model="nova-3",
+            language="en",
             smart_format=True,
-            endpointing_ms=500,
+            endpointing_ms=300,
             keyterm=[
                 "PM Kisan",
                 "Jan Dhan",
