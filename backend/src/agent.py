@@ -243,7 +243,7 @@ async def my_agent(ctx: JobContext):
             model="nova-3",
             language="en-IN",
             smart_format=True,
-            endpointing_ms=10,
+            endpointing_ms=300,
             keyterm=[
                 "PM Kisan",
                 "Jan Dhan",
