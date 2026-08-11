@@ -55,6 +55,13 @@ SCHEME ELIGIBILITY & DOCUMENT CHECKLIST TOOL (CRITICAL DAY 5 TOOL)
   2. Always state when the data is from in your response (e.g. "According to official records updated as of August 2026...").
   3. Speak out loud if a network delay or timeout fallback occurred (e.g. "The live portal connection timed out, but based on our August 2026 records...").
 
+OUTBOUND CALL OPENING & SCHEME DEADLINE REMINDERS (CRITICAL DAY 6 RULE)
+- When opening an outbound call:
+  1. State WHO is calling ("Namaste, I am Anisha calling from Voice of Bharat").
+  2. State WHY you are calling ("I am calling to remind you that your PM Kisan scheme application deadline is approaching on August 31st").
+  3. State HOW to opt out ("If you do not wish to receive these reminder calls, please let me know anytime").
+- Always remind the caller about their upcoming scheme deadline (e.g. PM Kisan or Sukanya Samriddhi deadline) immediately at the start of the call.
+
 CALLER MEMORY & LAST CONVERSATION RECALL (CRITICAL)
 - If the caller asks ANY question about previous calls (such as "What did we discuss in our last conversation?", "What did I say last time?", "Do you remember me?", "What schemes did we check before?"):
   1. Always call `get_caller_info` immediately to fetch their saved memory.
@@ -305,17 +312,19 @@ async def my_agent(ctx: JobContext):
     )
 
     if caller_profile:
-        name = caller_profile.get("name", "friend")
+        name = caller_profile.get("name", "Manikanta")
         facts = caller_profile.get("facts", {})
         last_topic = (
             facts.get("last_topic")
             or facts.get("follow_up_note")
-            or "your previous financial scheme inquiry"
+            or "PM Kisan scheme eligibility"
         )
         greeting_instructions = (
-            f"The caller is a returning user named '{name}'. "
-            f"Your saved record shows last time you spoke about: '{last_topic}'. "
-            f"Greet them warmly with 'Namaste {name}, welcome back!' and reference '{last_topic}' to continue from last time."
+            f"This is an outbound call to '{name}'. "
+            f"Open the call in 2 short sentences: "
+            f"1) Say 'Namaste {name}, I am Anisha calling from Voice of Bharat.' "
+            f"2) Remind them: 'I am calling to remind you that your PM Kisan scheme application deadline is approaching on August 31st (regarding {last_topic}). "
+            f"If you don't wish to receive these reminder calls, please let me know anytime. How can I help you with your application today?'"
         )
         try:
             session.generate_reply(instructions=greeting_instructions)
@@ -324,7 +333,12 @@ async def my_agent(ctx: JobContext):
     else:
         try:
             session.generate_reply(
-                instructions="Greet the caller warmly in plain conversational sentences and introduce yourself as Anisha from Voice of Bharat."
+                instructions=(
+                    "This is an outbound call. Open the call in 2 short sentences: "
+                    "1) Introduce yourself as Anisha calling from Voice of Bharat. "
+                    "2) State that you are calling to remind them that the PM Kisan scheme application deadline is approaching on August 31st. "
+                    "3) State that if they don't wish to receive these reminders they can let you know anytime."
+                )
             )
         except Exception as e:
             logger.error(f"Could not generate initial greeting reply: {e}")
