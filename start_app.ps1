@@ -23,12 +23,8 @@ if (Test-CommandExists "livekit-server") {
   Write-Warning "livekit-server was not found. Skipping local LiveKit startup and using your configured LIVEKIT_URL instead."
 }
 
-Start-Process powershell -ArgumentList "-NoExit", "-Command", "Set-Location '$repoRoot\backend'; uv run python src/agent.py dev"
-if (Test-CommandExists "pnpm") {
-  Start-Process powershell -ArgumentList "-NoExit", "-Command", "Set-Location '$repoRoot\frontend'; pnpm dev"
-} else {
-  Start-Process powershell -ArgumentList "-NoExit", "-Command", "Set-Location '$repoRoot\frontend'; npm run dev"
-}
+Start-Process powershell -ArgumentList "-ExecutionPolicy", "Bypass", "-NoExit", "-Command", "Set-Location '$repoRoot\backend'; uv run python src/agent.py dev"
+Start-Process powershell -ArgumentList "-ExecutionPolicy", "Bypass", "-NoExit", "-Command", "Set-Location '$repoRoot\frontend'; cmd /c npm run dev"
 
 Write-Host "Started backend and frontend in separate PowerShell windows."
 Write-Host ""
