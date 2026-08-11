@@ -13,6 +13,7 @@ murf-livekit-starter/
 │   ├── app/          # Pages and API routes
 │   ├── components/   # UI components (agents-ui, app, ui)
 │   └── app-config.ts # Branding and feature config
+├── challenges/       # Challenge tasks & guidelines (e.g. Day 6 Task.md)
 ├── start_app.sh      # Start all services (macOS/Linux)
 └── start_app.ps1     # Start all services (Windows)
 ```

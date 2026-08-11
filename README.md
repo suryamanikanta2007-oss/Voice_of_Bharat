@@ -262,6 +262,7 @@ murf-livekit-starter/
 │   ├── app-config.ts        # Branding, title, button text, accent
 │   ├── .env.example         # Frontend env template
 │   └── package.json         # Node deps (pnpm)
+├── challenges/              # Challenge tasks & guidelines (e.g. Day 6 Task.md)
 ├── start_app.sh             # Start LiveKit + backend + frontend (macOS/Linux)
 ├── start_app.ps1            # Start LiveKit + backend + frontend (Windows)
 ├── README.md                # This file
