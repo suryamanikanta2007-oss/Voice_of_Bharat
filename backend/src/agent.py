@@ -12,7 +12,6 @@ if sys.platform == "win32":
         sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 
 from dotenv import load_dotenv
-from livekit import rtc
 from livekit.agents import (
     Agent,
     AgentServer,
@@ -23,10 +22,9 @@ from livekit.agents import (
     cli,
     function_tool,
     inference,
-    room_io,
     tokenize,
 )
-from livekit.plugins import deepgram, google, murf, noise_cancellation, openai, silero
+from livekit.plugins import deepgram, google, murf, openai, silero
 from livekit.plugins.turn_detector.english import EnglishModel
 
 from db import get_caller, init_db, save_caller
@@ -249,10 +247,10 @@ async def my_agent(ctx: JobContext):
     # Low-latency voice AI pipeline configuration
     session = AgentSession(
         stt=deepgram.STT(
-            model="nova-3",
+            model="nova-2-general",
             language="en-IN",
             smart_format=True,
-            endpointing_ms=300,
+            endpointing_ms=500,
             keyterm=[
                 "PM Kisan",
                 "Jan Dhan",
@@ -283,16 +281,6 @@ async def my_agent(ctx: JobContext):
     await session.start(
         agent=Assistant(),
         room=ctx.room,
-        room_options=room_io.RoomOptions(
-            audio_input=room_io.AudioInputOptions(
-                noise_cancellation=lambda params: (
-                    noise_cancellation.BVCTelephony()
-                    if params.participant.kind
-                    == rtc.ParticipantKind.PARTICIPANT_KIND_SIP
-                    else noise_cancellation.BVC()
-                ),
-            ),
-        ),
     )
 
     # Connect to room
