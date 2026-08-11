@@ -1,6 +1,7 @@
 import asyncio
 import os
 from pathlib import Path
+
 from dotenv import load_dotenv
 from livekit import api
 
@@ -11,13 +12,16 @@ if env_local.exists():
 else:
     load_dotenv()
 
+
 async def main():
     livekit_url = os.environ.get("LIVEKIT_URL")
     api_key = os.environ.get("LIVEKIT_API_KEY")
     api_secret = os.environ.get("LIVEKIT_API_SECRET")
 
     if not livekit_url or not api_key or not api_secret:
-        raise ValueError("LIVEKIT_URL, LIVEKIT_API_KEY, and LIVEKIT_API_SECRET must be set in environment or .env.local")
+        raise ValueError(
+            "LIVEKIT_URL, LIVEKIT_API_KEY, and LIVEKIT_API_SECRET must be set in environment or .env.local"
+        )
 
     lk_api = api.LiveKitAPI(
         url=livekit_url,
@@ -53,6 +57,7 @@ async def main():
 
     print(f"Call placed successfully: {participant}")
     await lk_api.aclose()
+
 
 if __name__ == "__main__":
     asyncio.run(main())
