@@ -8,7 +8,7 @@ from scheme_data import DATA_AS_OF, evaluate_eligibility
 
 
 def _llm() -> llm.LLM:
-    return inference.LLM(model="openai/gpt-4.1-mini")
+    return inference.LLM(model="openai/gpt-4o-mini")
 
 
 def test_evaluate_eligibility_logic() -> None:

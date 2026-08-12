@@ -27,7 +27,7 @@ from livekit.agents import (
 from livekit.plugins import deepgram, google, murf, openai, silero
 from livekit.plugins.turn_detector.english import EnglishModel
 
-from db import get_caller, init_db, save_caller
+from db import create_escalation_record, get_caller, init_db, save_caller
 from scheme_data import DATA_AS_OF, evaluate_eligibility
 
 logger = logging.getLogger("agent")
@@ -74,6 +74,20 @@ CONSENT REQUIREMENT & AUTOMATIC SAVING (HARD RULE - HARD REQUIREMENT)
 - DO NOT call `save_caller_info` until you have asked for permission and received the caller's affirmative response ("Yes", "Sure", "Okay", etc.).
 - IF the caller says YES or agrees: call `save_caller_info` with `user_has_consented=True` and pass a JSON string `facts_json` containing `last_topic`, `schemes_checked`, and `follow_up_note`.
 - IF the caller says NO or refuses: DO NOT save their details, or call `save_caller_info` with `user_has_consented=False`.
+
+HUMAN HELP & ESCALATION RULES (CRITICAL DAY 7 RULE)
+- You must know when to stop and create a request for a human specialist. Escalation is required for two specific situations:
+  1. FRAUD / SCAM REPORTING: Caller reports suspicious calls, unauthorized account debits, or financial scam attempts.
+  2. COMPLEX DECISIONS & SPECIAL WAIVERS: Caller requests a manual income limit override, special scheme waiver, or complex grievance appeal that automated rules cannot decide.
+- BEFORE calling `create_escalation`, you MUST state what information you plan to submit and ask for the caller's explicit permission:
+  "I will prepare a support request with your name, what happened, what we checked, and your contact preference. May I have your permission to submit this to a human specialist?"
+- DO NOT call `create_escalation` until you have asked for permission and received the caller's affirmative response ("Yes", "Sure", "Go ahead", "Okay", etc.).
+- IF the caller says YES: call `create_escalation` with `user_has_consented=True`.
+- IF the caller says NO: DO NOT call `create_escalation`. Inform the caller: "Understood. I will not submit a human help request without your permission."
+- AFTER `create_escalation` returns a reference ID (e.g. ESC-84920), state the exact reference ID out loud and explain what happens next:
+  "Your request has been logged under Reference ID [reference_id]. A human specialist will review your request within 24 hours and follow up with you."
+- DO NOT promise immediate human callback unless explicitly specified.
+- NEVER include passwords, PINs, OTPs, Aadhaar numbers, or bank account numbers in the request summary.
 
 OBJECTIVES
 1. Help callers understand basic Indian financial products, schemes (like PM Jan Dhan Yojana, PM Kisan, Sukanya Samriddhi), and banking processes.
@@ -218,6 +232,59 @@ class Assistant(Agent):
             logger.error(f"Security error saving caller info: {e}")
             return f"Error saving caller info due to security guardrail: {e}"
 
+    @function_tool
+    async def create_escalation(
+        self,
+        context: RunContext,
+        caller_name: str,
+        reason_category: str,
+        issue_summary: str,
+        agent_checks_done: str,
+        urgency: str,
+        caller_language: str,
+        preferred_contact_method: str,
+        user_has_consented: bool,
+    ) -> str:
+        """Create a human help request / escalation ticket when a caller reports fraud or needs a complex decision.
+
+        CRITICAL DAY 7 RULE: Ask the caller for explicit permission before invoking this tool.
+        Pass user_has_consented=True ONLY IF caller explicitly agreed to send the request.
+        Do NOT include passwords, OTPs, PINs, bank account numbers, or Aadhaar numbers in issue_summary or agent_checks_done.
+
+        Args:
+            caller_name: Name of caller needing help (e.g. 'Ramesh' or 'Priya').
+            reason_category: Category for escalation: 'fraud_report' (fraud/scam) or 'complex_decision' (manual waiver/override/appeal).
+            issue_summary: Short summary of what happened (e.g. 'Caller received suspicious call asking for PIN').
+            agent_checks_done: Summary of what agent checked (e.g. 'Verified PM Kisan status, advised not to share PIN').
+            urgency: Urgency level ('High', 'Medium', or 'Low').
+            caller_language: Language spoken by caller (e.g. 'English', 'Hindi').
+            preferred_contact_method: Preferred follow-up method (e.g. 'Phone call', 'SMS', 'Email').
+            user_has_consented: True if caller explicitly gave permission; False otherwise.
+        """
+        logger.info(
+            f"Attempting to create escalation for {caller_name} (reason={reason_category}, consent={user_has_consented})"
+        )
+        if not user_has_consented:
+            return (
+                "Caller permission was not given. Escalation request was NOT created."
+            )
+
+        try:
+            res = create_escalation_record(
+                caller_name=caller_name,
+                reason_category=reason_category,
+                issue_summary=issue_summary,
+                agent_checks=agent_checks_done,
+                urgency=urgency,
+                caller_language=caller_language,
+                preferred_contact_method=preferred_contact_method,
+                user_has_consented=user_has_consented,
+            )
+            return json.dumps(res, indent=2)
+        except ValueError as e:
+            logger.error(f"Security guardrail error creating escalation: {e}")
+            return f"Error creating escalation due to security guardrail: {e}"
+
 
 server = AgentServer()
 
@@ -248,8 +315,8 @@ async def my_agent(ctx: JobContext):
         llm_instance = google.LLM(model="gemini-2.0-flash")
         logger.info("Using Google Gemini LLM (gemini-2.0-flash)")
     else:
-        llm_instance = inference.LLM(model="openai/gpt-4.1-mini")
-        logger.info("Using LiveKit Cloud Inference LLM (openai/gpt-4.1-mini)")
+        llm_instance = inference.LLM(model="openai/gpt-4o-mini")
+        logger.info("Using LiveKit Cloud Inference LLM (openai/gpt-4o-mini)")
 
     # Low-latency voice AI pipeline configuration
     session = AgentSession(
@@ -284,14 +351,14 @@ async def my_agent(ctx: JobContext):
         preemptive_generation=True,
     )
 
+    # Connect to room first
+    await ctx.connect()
+
     # Start session
     await session.start(
         agent=Assistant(),
         room=ctx.room,
     )
-
-    # Connect to room
-    await ctx.connect()
 
     # Retrieve existing remote participant or wait for participant safely
     participant = next(iter(ctx.room.remote_participants.values()), None)

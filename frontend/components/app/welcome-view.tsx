@@ -9,6 +9,7 @@ import {
   PhoneCallIcon,
   ShieldCheckIcon,
 } from '@phosphor-icons/react';
+import { EscalationDashboard } from '@/components/app/escalation-dashboard';
 import { Button } from '@/components/ui/button';
 
 interface WelcomeViewProps {
@@ -161,6 +162,9 @@ export const WelcomeView = React.forwardRef<
           ))}
         </div>
       </div>
+
+      {/* Human Help Escalation Queue Dashboard (Day 7 Requirement) */}
+      <EscalationDashboard />
     </div>
   );
 });

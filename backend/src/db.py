@@ -49,8 +49,20 @@ def sanitize_facts(facts: dict[str, Any]) -> dict[str, Any]:
     return cleaned_facts
 
 
+def sanitize_text(text: str) -> str:
+    """Check text for sensitive information like account numbers, PINs, OTPs, Aadhaar numbers, or passwords."""
+    if not text:
+        return text
+    for val_pat in SENSITIVE_VALUE_PATTERNS:
+        if re.search(val_pat, text):
+            raise ValueError(
+                "Security Guardrail: Sensitive numeric, PIN, OTP, card, or ID pattern detected in request summary."
+            )
+    return text
+
+
 def init_db(db_path: str | None = None) -> None:
-    """Initialize SQLite database and create users table if not exists."""
+    """Initialize SQLite database and create users and escalations tables if not exist."""
     target_path = db_path if db_path is not None else DEFAULT_DB_PATH
     with sqlite3.connect(target_path) as conn:
         cursor = conn.cursor()
@@ -62,6 +74,23 @@ def init_db(db_path: str | None = None) -> None:
                 language_preference TEXT DEFAULT 'en-IN',
                 facts TEXT NOT NULL,
                 last_interaction TEXT NOT NULL
+            )
+            """
+        )
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS escalations (
+                id TEXT PRIMARY KEY,
+                user_id TEXT,
+                caller_name TEXT NOT NULL,
+                reason_category TEXT NOT NULL,
+                issue_summary TEXT NOT NULL,
+                agent_checks TEXT NOT NULL,
+                urgency TEXT NOT NULL,
+                caller_language TEXT NOT NULL,
+                preferred_contact_method TEXT NOT NULL,
+                status TEXT DEFAULT 'OPEN',
+                created_at TEXT NOT NULL
             )
             """
         )
@@ -172,3 +201,112 @@ def save_caller(
         "facts": cleaned_facts,
         "last_interaction": timestamp,
     }
+
+
+def create_escalation_record(
+    caller_name: str,
+    reason_category: str,
+    issue_summary: str,
+    agent_checks: str,
+    urgency: str,
+    caller_language: str,
+    preferred_contact_method: str,
+    user_has_consented: bool = False,
+    user_id: str = "caller_default_user",
+    db_path: str | None = None,
+) -> dict[str, Any]:
+    """Create a human help escalation record in SQLite database.
+
+    Requires user_has_consented=True. Sanitizes text against sensitive numeric/ID patterns.
+    """
+    if not user_has_consented:
+        return {
+            "success": False,
+            "reason": "Caller permission was not given. Human help request was NOT created.",
+        }
+
+    # Security guardrails: check for sensitive patterns
+    sanitize_text(issue_summary)
+    sanitize_text(agent_checks)
+    sanitize_text(caller_name)
+
+    import random
+
+    ref_id = f"ESC-{random.randint(10000, 99999)}"
+    timestamp = datetime.now(timezone.utc).isoformat()
+    target_path = db_path if db_path is not None else DEFAULT_DB_PATH
+    init_db(target_path)
+
+    with sqlite3.connect(target_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            INSERT INTO escalations (
+                id, user_id, caller_name, reason_category, issue_summary, agent_checks, urgency, caller_language, preferred_contact_method, status, created_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                ref_id,
+                user_id,
+                caller_name,
+                reason_category,
+                issue_summary,
+                agent_checks,
+                urgency,
+                caller_language,
+                preferred_contact_method,
+                "OPEN",
+                timestamp,
+            ),
+        )
+        conn.commit()
+
+    return {
+        "success": True,
+        "reference_id": ref_id,
+        "caller_name": caller_name,
+        "reason_category": reason_category,
+        "issue_summary": issue_summary,
+        "agent_checks": agent_checks,
+        "urgency": urgency,
+        "caller_language": caller_language,
+        "preferred_contact_method": preferred_contact_method,
+        "status": "OPEN",
+        "created_at": timestamp,
+    }
+
+
+def get_escalations(db_path: str | None = None) -> list[dict[str, Any]]:
+    """Retrieve all human help escalation records ordered by creation timestamp."""
+    target_path = db_path if db_path is not None else DEFAULT_DB_PATH
+    init_db(target_path)
+    with sqlite3.connect(target_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            SELECT id, user_id, caller_name, reason_category, issue_summary, agent_checks, urgency, caller_language, preferred_contact_method, status, created_at
+            FROM escalations
+            ORDER BY created_at DESC
+            """
+        )
+        rows = cursor.fetchall()
+
+    results = []
+    for r in rows:
+        results.append(
+            {
+                "id": r[0],
+                "user_id": r[1],
+                "caller_name": r[2],
+                "reason_category": r[3],
+                "issue_summary": r[4],
+                "agent_checks": r[5],
+                "urgency": r[6],
+                "caller_language": r[7],
+                "preferred_contact_method": r[8],
+                "status": r[9],
+                "created_at": r[10],
+            }
+        )
+    return results

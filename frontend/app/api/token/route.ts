@@ -13,7 +13,7 @@ type ConnectionDetails = {
 const API_KEY = process.env.LIVEKIT_API_KEY;
 const API_SECRET = process.env.LIVEKIT_API_SECRET;
 const LIVEKIT_URL = process.env.LIVEKIT_URL;
-const AGENT_NAME = process.env.AGENT_NAME;
+const AGENT_NAME = process.env.AGENT_NAME || 'my-agent';
 
 // don't cache the results
 export const revalidate = 0;
@@ -45,9 +45,10 @@ async function handleTokenRequest(req: Request) {
     let roomConfig: RoomConfiguration | undefined;
     if (body?.room_config) {
       roomConfig = RoomConfiguration.fromJson(body.room_config, { ignoreUnknownFields: true });
-    } else if (AGENT_NAME) {
+    } else {
+      const agentToDispatch = AGENT_NAME || 'my-agent';
       roomConfig = RoomConfiguration.fromJson(
-        { agents: [{ agentName: AGENT_NAME }] },
+        { agents: [{ agent_name: agentToDispatch, agentName: agentToDispatch }] },
         { ignoreUnknownFields: true }
       );
     }
