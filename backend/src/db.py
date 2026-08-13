@@ -94,6 +94,19 @@ def init_db(db_path: str | None = None) -> None:
             )
             """
         )
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS calls (
+                id TEXT PRIMARY KEY,
+                room_name TEXT NOT NULL,
+                status TEXT NOT NULL,
+                started_at TEXT NOT NULL,
+                ended_at TEXT,
+                duration_seconds INTEGER DEFAULT 0,
+                failure_reason TEXT
+            )
+            """
+        )
         conn.commit()
 
 
@@ -310,3 +323,128 @@ def get_escalations(db_path: str | None = None) -> list[dict[str, Any]]:
             }
         )
     return results
+
+
+def record_call_start(
+    call_id: str, room_name: str, db_path: str | None = None
+) -> dict[str, Any]:
+    """Record a newly initiated voice session in SQLite database."""
+    target_path = db_path if db_path is not None else DEFAULT_DB_PATH
+    init_db(target_path)
+    timestamp = datetime.now(timezone.utc).isoformat()
+    with sqlite3.connect(target_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            INSERT INTO calls (id, room_name, status, started_at)
+            VALUES (?, ?, 'IN_PROGRESS', ?)
+            ON CONFLICT(id) DO UPDATE SET
+                room_name = excluded.room_name,
+                status = 'IN_PROGRESS',
+                started_at = excluded.started_at
+            """,
+            (call_id, room_name, timestamp),
+        )
+        conn.commit()
+    return {
+        "id": call_id,
+        "room_name": room_name,
+        "status": "IN_PROGRESS",
+        "started_at": timestamp,
+    }
+
+
+def record_call_end(
+    call_id: str,
+    status: str = "SUCCESS",
+    failure_reason: str | None = None,
+    db_path: str | None = None,
+) -> dict[str, Any]:
+    """Record call session completion status, duration, and optional failure reason."""
+    target_path = db_path if db_path is not None else DEFAULT_DB_PATH
+    init_db(target_path)
+    timestamp = datetime.now(timezone.utc).isoformat()
+
+    with sqlite3.connect(target_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT started_at FROM calls WHERE id = ?", (call_id,))
+        row = cursor.fetchone()
+
+        duration_seconds = 0
+        if row and row[0]:
+            try:
+                start_dt = datetime.fromisoformat(row[0])
+                end_dt = datetime.fromisoformat(timestamp)
+                duration_seconds = max(0, int((end_dt - start_dt).total_seconds()))
+            except Exception:
+                duration_seconds = 0
+
+        cursor.execute(
+            """
+            UPDATE calls
+            SET status = ?, ended_at = ?, duration_seconds = ?, failure_reason = ?
+            WHERE id = ?
+            """,
+            (status, timestamp, duration_seconds, failure_reason, call_id),
+        )
+        conn.commit()
+
+    return {
+        "id": call_id,
+        "status": status,
+        "ended_at": timestamp,
+        "duration_seconds": duration_seconds,
+        "failure_reason": failure_reason,
+    }
+
+
+def get_call_stats(db_path: str | None = None) -> dict[str, Any]:
+    """Retrieve overall call statistics (total, successful, failed) and recent logs."""
+    target_path = db_path if db_path is not None else DEFAULT_DB_PATH
+    init_db(target_path)
+    with sqlite3.connect(target_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT COUNT(*) FROM calls")
+        total_calls = cursor.fetchone()[0]
+
+        cursor.execute(
+            "SELECT COUNT(*) FROM calls WHERE status IN ('SUCCESS', 'COMPLETED')"
+        )
+        successful_calls = cursor.fetchone()[0]
+
+        cursor.execute(
+            "SELECT COUNT(*) FROM calls WHERE status IN ('FAILED', 'ERROR')"
+        )
+        failed_calls = cursor.fetchone()[0]
+
+        cursor.execute(
+            """
+            SELECT id, room_name, status, started_at, ended_at, duration_seconds, failure_reason
+            FROM calls
+            ORDER BY started_at DESC
+            LIMIT 20
+            """
+        )
+        rows = cursor.fetchall()
+
+    recent_calls = []
+    for r in rows:
+        recent_calls.append(
+            {
+                "id": r[0],
+                "room_name": r[1],
+                "status": r[2],
+                "started_at": r[3],
+                "ended_at": r[4],
+                "duration_seconds": r[5] or 0,
+                "failure_reason": r[6],
+            }
+        )
+
+    return {
+        "total_calls": total_calls,
+        "successful_calls": successful_calls,
+        "failed_calls": failed_calls,
+        "recent_calls": recent_calls,
+    }
+

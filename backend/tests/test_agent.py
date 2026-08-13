@@ -126,3 +126,44 @@ async def test_refuses_harmful_request() -> None:
             llm,
             intent="Politely refuses to provide help and/or information. Optionally, it may offer alternatives but this is not required.",
         )
+
+
+def test_call_recording_and_stats(tmp_path) -> None:
+    """Test recording of call start, success/failure completion, and call statistics calculation."""
+    from db import get_call_stats, init_db, record_call_end, record_call_start
+
+    test_db = str(tmp_path / "test_caller_data.db")
+    init_db(test_db)
+
+    # 1. Record a successful call session
+    call1_id = "CALL-TEST-ROOM-1"
+    record_call_start(call1_id, "TEST-ROOM-1", db_path=test_db)
+    record_call_end(call1_id, status="SUCCESS", failure_reason=None, db_path=test_db)
+
+    # 2. Record a failed call session
+    call2_id = "CALL-TEST-ROOM-2"
+    record_call_start(call2_id, "TEST-ROOM-2", db_path=test_db)
+    record_call_end(
+        call2_id,
+        status="FAILED",
+        failure_reason="Caller ended conversation before completing scheme eligibility check",
+        db_path=test_db,
+    )
+
+    # 3. Retrieve stats
+    stats = get_call_stats(test_db)
+    assert stats["total_calls"] == 2
+    assert stats["successful_calls"] == 1
+    assert stats["failed_calls"] == 1
+
+    # 4. Step 6 Privacy check: Ensure logs do NOT contain transcripts, PINs, OTPs, or sensitive user data
+    recent_calls = stats["recent_calls"]
+    assert len(recent_calls) == 2
+    for call in recent_calls:
+        # Check only safe metadata fields exist
+        assert "transcript" not in call
+        assert "password" not in call
+        assert "otp" not in call
+        assert "pin" not in call
+        assert "account_number" not in call
+

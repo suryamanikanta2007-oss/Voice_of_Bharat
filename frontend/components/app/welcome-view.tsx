@@ -9,6 +9,7 @@ import {
   PhoneCallIcon,
   ShieldCheckIcon,
 } from '@phosphor-icons/react';
+import { CallStatsDashboard } from '@/components/app/call-stats-dashboard';
 import { EscalationDashboard } from '@/components/app/escalation-dashboard';
 import { Button } from '@/components/ui/button';
 
@@ -162,6 +163,9 @@ export const WelcomeView = React.forwardRef<
           ))}
         </div>
       </div>
+
+      {/* Live Call Performance Metrics Dashboard (Total Calls, Successful Calls, Failed Calls) */}
+      <CallStatsDashboard />
 
       {/* Human Help Escalation Queue Dashboard (Day 7 Requirement) */}
       <EscalationDashboard />

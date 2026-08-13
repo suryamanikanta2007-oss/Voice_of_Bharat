@@ -106,8 +106,15 @@ export function ViewController({ appConfig }: ViewControllerProps) {
 
   return (
     <div className="bg-background relative h-svh w-full overflow-hidden">
-      {/* Top Bar Language Switcher */}
+      {/* Top Bar Navigation */}
       <div className="fixed top-4 right-4 z-50 flex items-center gap-2">
+        <a
+          href="/dashboard"
+          className="bg-card/80 hover:bg-card border-border/40 text-foreground flex cursor-pointer items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold shadow-xs transition-all"
+        >
+          <span>📊</span>
+          <span>{lang === 'en' ? 'Call Dashboard' : 'कॉल डैशबोर्ड'}</span>
+        </a>
         <button
           onClick={toggleLanguage}
           className="bg-card/80 hover:bg-card border-border/40 text-foreground flex cursor-pointer items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold shadow-xs transition-all"

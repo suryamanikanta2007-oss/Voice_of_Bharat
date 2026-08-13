@@ -27,7 +27,14 @@ from livekit.agents import (
 from livekit.plugins import deepgram, google, murf, openai, silero
 from livekit.plugins.turn_detector.english import EnglishModel
 
-from db import create_escalation_record, get_caller, init_db, save_caller
+from db import (
+    create_escalation_record,
+    get_caller,
+    init_db,
+    record_call_end,
+    record_call_start,
+    save_caller,
+)
 from scheme_data import DATA_AS_OF, evaluate_eligibility
 
 logger = logging.getLogger("agent")
@@ -63,10 +70,9 @@ OUTBOUND CALL OPENING & SCHEME DEADLINE REMINDERS (CRITICAL DAY 6 RULE)
 - Always remind the caller about their upcoming scheme deadline (e.g. PM Kisan or Sukanya Samriddhi deadline) immediately at the start of the call.
 
 CALLER MEMORY & LAST CONVERSATION RECALL (CRITICAL)
-- If the caller asks ANY question about previous calls (such as "What did we discuss in our last conversation?", "What did I say last time?", "Do you remember me?", "What schemes did we check before?"):
-  1. Always call `get_caller_info` immediately to fetch their saved memory.
-  2. Answer by stating their name, the exact schemes checked, the last topic discussed, and any follow-up notes from their previous call.
-- When welcoming a returning caller at the start of a call, use their saved profile to greet them by name and reference their previous topic (e.g. "Namaste Ramesh, welcome back! Last time we spoke about PM Kisan eligibility. How can I help you today?").
+- Whenever a caller identifies themselves by user ID, phone number, or name (e.g. "my user_id is caller_101") OR asks any question about previous calls ("What did we discuss in our last conversation?", "Do you remember me?"):
+  1. Immediately call `get_caller_info` to fetch their saved memory.
+  2. Welcome them back by name and reference their previous topic or interaction (e.g. "Namaste Ramesh, welcome back! Last time we discussed cotton crop spraying and PM Kisan eligibility. How can I help you today?").
 
 CONSENT REQUIREMENT & AUTOMATIC SAVING (HARD RULE - HARD REQUIREMENT)
 - Before invoking `save_caller_info`, you MUST explicitly ask the caller for permission in your response:
@@ -104,6 +110,8 @@ GUARDRAILS (HARD RULE)
 class Assistant(Agent):
     def __init__(self) -> None:
         super().__init__(instructions=SYSTEM_PROMPT)
+        self.completed_objective = False
+
 
     @function_tool
     async def check_scheme_eligibility_and_docs(
@@ -135,6 +143,7 @@ class Assistant(Agent):
             simulate_timeout: Set to True ONLY IF testing network/portal timeout failure handling out loud.
         """
         logger.info(f"Checking scheme eligibility/docs for: {scheme_name}")
+        self.completed_objective = True
         try:
             result = evaluate_eligibility(
                 scheme_query=scheme_name,
@@ -171,6 +180,8 @@ class Assistant(Agent):
         target_id = user_id if user_id and user_id.strip() else "caller_default_user"
         logger.info(f"Looking up caller info for user_id: {target_id}")
         record = get_caller(target_id)
+        if record:
+            self.completed_objective = True
 
         if not record:
             return f"No prior record found for user_id '{target_id}'. This is a new caller."
@@ -227,6 +238,7 @@ class Assistant(Agent):
                 facts=facts_dict,
                 explicit_consent_given=user_has_consented,
             )
+            self.completed_objective = True
             return json.dumps(result, indent=2)
         except ValueError as e:
             logger.error(f"Security error saving caller info: {e}")
@@ -280,6 +292,7 @@ class Assistant(Agent):
                 preferred_contact_method=preferred_contact_method,
                 user_has_consented=user_has_consented,
             )
+            self.completed_objective = True
             return json.dumps(res, indent=2)
         except ValueError as e:
             logger.error(f"Security guardrail error creating escalation: {e}")
@@ -304,111 +317,134 @@ async def my_agent(ctx: JobContext):
         "room": ctx.room.name,
     }
 
-    # LLM configuration (OpenAI if OPENAI_API_KEY set, else LiveKit Cloud Inference for guaranteed uptime)
-    if os.environ.get("OPENAI_API_KEY"):
-        llm_instance = openai.LLM(model="gpt-4o-mini")
-        logger.info("Using OpenAI LLM (gpt-4o-mini)")
-    elif os.environ.get("USE_GOOGLE_GEMINI", "").lower() in (
-        "true",
-        "1",
-    ) and os.environ.get("GOOGLE_API_KEY"):
-        llm_instance = google.LLM(model="gemini-2.0-flash")
-        logger.info("Using Google Gemini LLM (gemini-2.0-flash)")
-    else:
-        llm_instance = inference.LLM(model="openai/gpt-4o-mini")
-        logger.info("Using LiveKit Cloud Inference LLM (openai/gpt-4o-mini)")
+    call_id = f"CALL-{ctx.room.name}"
+    record_call_start(call_id=call_id, room_name=ctx.room.name)
 
-    # Low-latency voice AI pipeline configuration
-    session = AgentSession(
-        stt=deepgram.STT(
-            model="nova-3",
-            language="en",
-            smart_format=True,
-            endpointing_ms=300,
-            keyterm=[
-                "PM Kisan",
-                "Jan Dhan",
-                "Sukanya Samriddhi",
-                "CSC center",
-                "Aadhaar",
-                "KYC",
-                "Voice of Bharat",
-                "Ramesh",
-                "Priya",
-            ],
-        ),
-        llm=llm_instance,
-        tts=murf.TTS(
-            voice="Anisha",
-            locale="en-IN",
-            style="Conversation",
-            tokenizer=tokenize.basic.SentenceTokenizer(min_sentence_len=15),
-            text_pacing=False,
-            min_buffer_size=3,
-        ),
-        turn_detection=EnglishModel(),
-        vad=ctx.proc.userdata["vad"],
-        preemptive_generation=True,
-    )
+    call_status = "SUCCESS"
+    failure_reason = None
 
-    # Connect to room first
-    await ctx.connect()
+    try:
+        # LLM configuration (OpenAI if OPENAI_API_KEY set, else LiveKit Cloud Inference for guaranteed uptime)
+        if os.environ.get("OPENAI_API_KEY"):
+            llm_instance = openai.LLM(model="gpt-4o-mini")
+            logger.info("Using OpenAI LLM (gpt-4o-mini)")
+        elif os.environ.get("USE_GOOGLE_GEMINI", "").lower() in (
+            "true",
+            "1",
+        ) and os.environ.get("GOOGLE_API_KEY"):
+            llm_instance = google.LLM(model="gemini-2.0-flash")
+            logger.info("Using Google Gemini LLM (gemini-2.0-flash)")
+        else:
+            llm_instance = inference.LLM(model="openai/gpt-4o-mini")
+            logger.info("Using LiveKit Cloud Inference LLM (openai/gpt-4o-mini)")
 
-    # Start session
-    await session.start(
-        agent=Assistant(),
-        room=ctx.room,
-    )
-
-    # Retrieve existing remote participant or wait for participant safely
-    participant = next(iter(ctx.room.remote_participants.values()), None)
-    if not participant:
-        try:
-            participant = await ctx.wait_for_participant()
-        except Exception:
-            participant = None
-
-    identity = participant.identity if participant else "caller_default_user"
-    name_hint = participant.name if participant else None
-
-    # Check SQLite DB for existing caller memory
-    caller_profile = (
-        get_caller(identity)
-        or (get_caller(name_hint) if name_hint else None)
-        or get_caller("caller_default_user")
-    )
-
-    if caller_profile:
-        name = caller_profile.get("name", "Manikanta")
-        facts = caller_profile.get("facts", {})
-        last_topic = (
-            facts.get("last_topic")
-            or facts.get("follow_up_note")
-            or "PM Kisan scheme eligibility"
+        # Low-latency voice AI pipeline configuration
+        session = AgentSession(
+            stt=deepgram.STT(
+                model="nova-3",
+                language="en",
+                smart_format=True,
+                endpointing_ms=300,
+                keyterm=[
+                    "PM Kisan",
+                    "Jan Dhan",
+                    "Sukanya Samriddhi",
+                    "CSC center",
+                    "Aadhaar",
+                    "KYC",
+                    "Voice of Bharat",
+                    "Ramesh",
+                    "Priya",
+                ],
+            ),
+            llm=llm_instance,
+            tts=murf.TTS(
+                voice="Anisha",
+                locale="en-IN",
+                style="Conversation",
+                tokenizer=tokenize.basic.SentenceTokenizer(min_sentence_len=15),
+                text_pacing=False,
+                min_buffer_size=3,
+            ),
+            turn_detection=EnglishModel(),
+            vad=ctx.proc.userdata["vad"],
+            preemptive_generation=True,
         )
-        greeting_instructions = (
-            f"This is an outbound call to '{name}'. "
-            f"Open the call in 2 short sentences: "
-            f"1) Say 'Namaste {name}, I am Anisha calling from Voice of Bharat.' "
-            f"2) Remind them: 'I am calling to remind you that your PM Kisan scheme application deadline is approaching on August 31st (regarding {last_topic}). "
-            f"If you don't wish to receive these reminder calls, please let me know anytime. How can I help you with your application today?'"
+
+        # Connect to room first
+        await ctx.connect()
+
+        # Start session
+        assistant_instance = Assistant()
+        await session.start(
+            agent=assistant_instance,
+            room=ctx.room,
         )
-        try:
-            session.generate_reply(instructions=greeting_instructions)
-        except Exception as e:
-            logger.error(f"Could not generate initial greeting reply: {e}")
-    else:
-        try:
-            session.generate_reply(
-                instructions=(
-                    "This is an outbound call. Open the call in 2 short sentences: "
-                    "1) Introduce yourself as Anisha calling from Voice of Bharat. "
-                    "2) State that you are calling to remind them that the PM Kisan scheme application deadline is approaching on August 31st. "
-                    "3) State that if they don't wish to receive these reminders they can let you know anytime."
-                )
+
+        # Retrieve existing remote participant or wait for participant safely
+        participant = next(iter(ctx.room.remote_participants.values()), None)
+        if not participant:
+            try:
+                participant = await ctx.wait_for_participant()
+            except Exception:
+                participant = None
+
+        identity = participant.identity if participant else "caller_default_user"
+        name_hint = participant.name if participant else None
+
+        # Check SQLite DB for existing caller memory
+        caller_profile = (
+            get_caller(identity)
+            or (get_caller(name_hint) if name_hint else None)
+            or get_caller("caller_default_user")
+        )
+
+        if caller_profile:
+            name = caller_profile.get("name", "Manikanta")
+            facts = caller_profile.get("facts", {})
+            last_topic = (
+                facts.get("last_topic")
+                or facts.get("follow_up_note")
+                or "PM Kisan scheme eligibility"
             )
-        except Exception as e:
-            logger.error(f"Could not generate initial greeting reply: {e}")
+            greeting_instructions = (
+                f"This is an outbound call to '{name}'. "
+                f"Open the call in 2 short sentences: "
+                f"1) Say 'Namaste {name}, I am Anisha calling from Voice of Bharat.' "
+                f"2) Remind them: 'I am calling to remind you that your PM Kisan scheme application deadline is approaching on August 31st (regarding {last_topic}). "
+                f"If you don't wish to receive these reminder calls, please let me know anytime. How can I help you with your application today?'"
+            )
+            try:
+                session.generate_reply(instructions=greeting_instructions)
+            except Exception as e:
+                logger.error(f"Could not generate initial greeting reply: {e}")
+        else:
+            try:
+                session.generate_reply(
+                    instructions=(
+                        "This is an outbound call. Open the call in 2 short sentences: "
+                        "1) Introduce yourself as Anisha calling from Voice of Bharat. "
+                        "2) State that you are calling to remind them that the PM Kisan scheme application deadline is approaching on August 31st. "
+                        "3) State that if they don't wish to receive these reminders they can let you know anytime."
+                    )
+                )
+            except Exception as e:
+                logger.error(f"Could not generate initial greeting reply: {e}")
+
+    except Exception as exc:
+        logger.error(f"Voice session error for room {ctx.room.name}: {exc}")
+        call_status = "FAILED"
+        failure_reason = str(exc)
+        raise exc
+    finally:
+        if call_status != "FAILED":
+            call_status = "SUCCESS"
+            failure_reason = None
+
+        record_call_end(
+            call_id=call_id, status=call_status, failure_reason=failure_reason
+        )
+
 
 
 if __name__ == "__main__":
