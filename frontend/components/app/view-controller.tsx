@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTheme } from 'next-themes';
 import { AnimatePresence, motion } from 'motion/react';
-import { useAgent, useSessionContext } from '@livekit/components-react';
+import { useAgent, useLocalParticipant, useSessionContext } from '@livekit/components-react';
 import {
   ArrowClockwiseIcon,
   PhoneDisconnectIcon,
@@ -37,6 +37,7 @@ interface ViewControllerProps {
 
 export function ViewController({ appConfig }: ViewControllerProps) {
   const { isConnected, start } = useSessionContext();
+  const { localParticipant } = useLocalParticipant();
   const { state: agentState } = useAgent();
   const { resolvedTheme } = useTheme();
 
@@ -68,26 +69,35 @@ export function ViewController({ appConfig }: ViewControllerProps) {
 
     try {
       if (typeof navigator !== 'undefined' && navigator.mediaDevices?.getUserMedia) {
-        await navigator.mediaDevices.getUserMedia({ audio: true });
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        stream.getTracks().forEach((track) => track.stop());
       }
       await start();
     } catch (err: unknown) {
       console.warn('Microphone permission check error:', err);
       setIsConnecting(false);
       const errorObj = err as { name?: string; message?: string };
-      if (
+      const isExplicitDenial =
         errorObj?.name === 'NotAllowedError' ||
         errorObj?.name === 'PermissionDeniedError' ||
         errorObj?.message?.includes('Permission denied') ||
-        errorObj?.message?.includes('Permission dismissed')
-      ) {
+        errorObj?.message?.includes('Permission dismissed');
+
+      if (isExplicitDenial) {
         setMicError(true);
       } else {
-        // Retry standard start
+        // If not explicitly denied permission, attempt direct start without pre-flight check
         try {
           await start();
-        } catch {
-          setMicError(true);
+        } catch (startErr) {
+          console.error('Direct start error:', startErr);
+          const startErrObj = startErr as { name?: string; message?: string };
+          if (
+            startErrObj?.name === 'NotAllowedError' ||
+            startErrObj?.name === 'PermissionDeniedError'
+          ) {
+            setMicError(true);
+          }
         }
       }
     }

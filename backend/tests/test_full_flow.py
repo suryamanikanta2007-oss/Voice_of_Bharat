@@ -52,7 +52,7 @@ async def test_step6_full_flow_memory_and_reconnect(temp_db: str) -> None:
         # Agent responds and asks for consent or handles initial query
         await result1.expect.next_event(type="message").judge(
             llm_inst,
-            intent="Responds politely about PM Kisan eligibility.",
+            intent="Responds politely about PM Kisan eligibility or states that it will connect the caller to our government scheme specialist.",
         )
 
         # Save caller facts with explicit consent

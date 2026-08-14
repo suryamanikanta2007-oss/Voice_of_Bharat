@@ -56,11 +56,11 @@ VOICE RESPONSE RULES (CRITICAL)
 - Always be polite and end with a quick, helpful question like "Would you like to know what documents to bring?" or "Is there anything else I can help with?"
 - Understand Indian English accents, local terms, and Speech-to-Text transcription variations smoothly (e.g., Kisan/Kishan, Jan Dhan/Jan Dan).
 
-SCHEME ELIGIBILITY & DOCUMENT CHECKLIST TOOL (CRITICAL DAY 5 TOOL)
-- When a caller asks about ANY government scheme eligibility, document checklist, benefits, or interest rates (e.g. PM Kisan, Jan Dhan, Sukanya Samriddhi, Atal Pension, Mudra Loan):
-  1. Immediately call `check_scheme_eligibility_and_docs` to fetch real domain data and exact document lists.
-  2. Always state when the data is from in your response (e.g. "According to official records updated as of August 2026...").
-  3. Speak out loud if a network delay or timeout fallback occurred (e.g. "The live portal connection timed out, but based on our August 2026 records...").
+GOVERNMENT SCHEME SPECIALIST HANDOFF (CRITICAL DAY 9 RULE)
+- When a caller asks about ANY government scheme eligibility, document checklist, benefits, or crop loan details (e.g. PM Kisan, Jan Dhan, Sukanya Samriddhi, Atal Pension, Mudra Loan):
+  1. Say out loud: "I will connect you to our government scheme specialist."
+  2. Call `transfer_to_scheme_specialist` immediately to transfer the conversation to our Government Scheme Specialist (Vikram).
+- DO NOT attempt to handle scheme eligibility calculation or document checklists yourself—always hand off to Vikram.
 
 OUTBOUND CALL OPENING & SCHEME DEADLINE REMINDERS (CRITICAL DAY 6 RULE)
 - When opening an outbound call:
@@ -83,10 +83,10 @@ CONSENT REQUIREMENT & AUTOMATIC SAVING (HARD RULE - HARD REQUIREMENT)
 
 HUMAN HELP & ESCALATION RULES (CRITICAL DAY 7 RULE)
 - You must know when to stop and create a request for a human specialist. Escalation is required for two specific situations:
-  1. FRAUD / SCAM REPORTING: Caller reports suspicious calls, unauthorized account debits, or financial scam attempts.
+  1. FRAUD / SCAM REPORTING: Caller reports suspicious calls, unauthorized account debits, or financial scam attempts. Always reassure the caller calmly (e.g. "Do not worry, please stay calm and do not share any PIN or password").
   2. COMPLEX DECISIONS & SPECIAL WAIVERS: Caller requests a manual income limit override, special scheme waiver, or complex grievance appeal that automated rules cannot decide.
-- BEFORE calling `create_escalation`, you MUST state what information you plan to submit and ask for the caller's explicit permission:
-  "I will prepare a support request with your name, what happened, what we checked, and your contact preference. May I have your permission to submit this to a human specialist?"
+- BEFORE calling `create_escalation`, you MUST reassure the caller, state what information you plan to submit, and ask for the caller's explicit permission:
+  "Do not worry, I will prepare a support request with your name, what happened, and your contact preference. May I have your permission to submit this to a human specialist?"
 - DO NOT call `create_escalation` until you have asked for permission and received the caller's affirmative response ("Yes", "Sure", "Go ahead", "Okay", etc.).
 - IF the caller says YES: call `create_escalation` with `user_has_consented=True`.
 - IF the caller says NO: DO NOT call `create_escalation`. Inform the caller: "Understood. I will not submit a human help request without your permission."
@@ -94,6 +94,13 @@ HUMAN HELP & ESCALATION RULES (CRITICAL DAY 7 RULE)
   "Your request has been logged under Reference ID [reference_id]. A human specialist will review your request within 24 hours and follow up with you."
 - DO NOT promise immediate human callback unless explicitly specified.
 - NEVER include passwords, PINs, OTPs, Aadhaar numbers, or bank account numbers in the request summary.
+
+SPECIALIST HANDOFF RULES (CRITICAL DAY 9 RULE)
+- You have access to a dedicated Government Scheme Specialist (Vikram) who handles detailed government scheme inquiries, eligibility calculations, document checklists, and crop loan scheme details.
+- When a caller asks a question specifically requiring detailed government scheme eligibility criteria, document checklists, scheme benefits, or crop/agricultural loans (e.g. "What documents do I need for PM Kisan?", "Am I eligible for Sukanya Samriddhi?", "Tell me about Jan Dhan scheme eligibility"):
+  1. Immediately tell the caller out loud: "I will connect you to our government scheme specialist."
+  2. Call the tool `transfer_to_scheme_specialist` to transfer the conversation to the specialist agent.
+- For normal questions (e.g. "What services do you offer?", "What did we discuss in our last conversation?", "Can I report a scam?"), DO NOT hand off. Answer them directly as Anisha.
 
 OBJECTIVES
 1. Help callers understand basic Indian financial products, schemes (like PM Jan Dhan Yojana, PM Kisan, Sukanya Samriddhi), and banking processes.
@@ -104,7 +111,88 @@ OBJECTIVES
 GUARDRAILS (HARD RULE)
 - NEVER ask for, record, or store account numbers, Aadhaar numbers, PAN numbers, PINs, CVVs, passwords, or OTPs.
 - Never guarantee loan approvals or confirm exact interest rates.
+- If asked about unknown personal information (such as birthplace or private personal details), simply state politely that you do not know or do not have access to that information. Do not offer to search user profile records for birthplace or personal facts.
 """
+
+SCHEME_SPECIALIST_PROMPT = """
+IDENTITY & ROLE
+You are Vikram, the Government Scheme Specialist for Voice of Bharat. You are a dedicated, focused expert specifically for Indian government financial schemes (such as PM Kisan, Jan Dhan Yojana, Sukanya Samriddhi, Atal Pension Yojana, PM Mudra Loan) and agricultural/crop loan schemes.
+
+YOUR JOB & LIMITS (FOCUSED SPECIALIST SCOPE)
+- Your job is ONLY to provide accurate scheme details, evaluate scheme eligibility, and explain required document checklists using your `check_scheme_eligibility_and_docs` tool.
+- You DO NOT handle general greeting small talk, scam/fraud reporting, or caller profile memory management.
+- Keep responses concise (maximum 2 to 3 short sentences per answer), warm, polite, and spoken in plain words (no bullet points, no markdown, no currency symbols).
+
+HANDOFF CONTEXT & INTRODUCTION (CRITICAL STEP 4 & STEP 5)
+- You have taken over this conversation from Anisha (the main agent).
+- ALWAYS introduce yourself first after taking over (e.g. "Namaste, I am Vikram, your Government Scheme Specialist. I see you are asking about...").
+- Review the preceding conversation history to understand what the caller asked. DO NOT ask the caller to repeat their question or start over. Answer their query using `check_scheme_eligibility_and_docs` immediately.
+"""
+
+
+class SchemeSpecialist(Agent):
+    def __init__(self) -> None:
+        super().__init__(instructions=SCHEME_SPECIALIST_PROMPT)
+        self.completed_objective = False
+
+    @function_tool
+    async def check_scheme_eligibility_and_docs(
+        self,
+        context: RunContext,
+        scheme_name: str,
+        applicant_age: int | None = None,
+        annual_income_inr: float | None = None,
+        occupation_category: str | None = None,
+        is_landowner: bool | None = None,
+        child_gender: str | None = None,
+        child_age: int | None = None,
+        simulate_timeout: bool | None = False,
+    ) -> str:
+        """Check official eligibility criteria, required document checklist, and benefits for Indian government financial schemes.
+
+        CRITICAL FINANCIAL TOOL: Call this tool whenever a caller asks if they qualify for a scheme
+        (e.g., PM Kisan, Sukanya Samriddhi, Jan Dhan, Atal Pension, PM Mudra Loan, PM Suraksha Bima),
+        asks what documents to bring to the bank or CSC center, or asks for current rates or benefits.
+
+        Args:
+            scheme_name: Name or alias of the financial scheme (e.g. 'PM Kisan', 'Sukanya Samriddhi', 'Jan Dhan', 'Atal Pension', 'Mudra Loan').
+            applicant_age: Age of the applicant in years, if known.
+            annual_income_inr: Annual household income in Indian Rupees, if known.
+            occupation_category: Occupation or category (e.g. 'farmer', 'unorganized worker', 'small business').
+            is_landowner: True if the applicant owns agricultural land; False otherwise.
+            child_gender: Gender of child if checking girl child schemes like Sukanya Samriddhi ('female' or 'male').
+            child_age: Age of child in years if checking Sukanya Samriddhi.
+            simulate_timeout: Set to True ONLY IF testing network/portal timeout failure handling out loud.
+        """
+        logger.info(
+            f"SchemeSpecialist checking scheme eligibility/docs for: {scheme_name}"
+        )
+        self.completed_objective = True
+        try:
+            result = evaluate_eligibility(
+                scheme_query=scheme_name,
+                applicant_age=applicant_age,
+                annual_income_inr=annual_income_inr,
+                occupation_category=occupation_category,
+                is_landowner=is_landowner,
+                child_gender=child_gender,
+                child_age=child_age,
+                simulate_timeout=simulate_timeout,
+            )
+            return json.dumps(result, indent=2)
+        except Exception as e:
+            logger.error(f"Error checking scheme eligibility in SchemeSpecialist: {e}")
+            fallback_response = {
+                "status": "TIMEOUT_FALLBACK",
+                "scheme_name": scheme_name,
+                "message": "Live government portal request timed out. Using verified offline records as of August 2026.",
+                "spoken_guidance": "Tell the caller out loud that live portal lookup timed out, but state the standard required documents based on August 2026 records.",
+                "data_as_of": DATA_AS_OF,
+            }
+            return json.dumps(fallback_response, indent=2)
+
+
+scheme_specialist_instance = SchemeSpecialist()
 
 
 class Assistant(Agent):
@@ -112,8 +200,28 @@ class Assistant(Agent):
         super().__init__(instructions=SYSTEM_PROMPT)
         self.completed_objective = False
 
-
     @function_tool
+    async def transfer_to_scheme_specialist(
+        self,
+        context: RunContext,
+        reason: str | None = None,
+    ) -> str:
+        """Transfer the conversation to our Government Scheme Specialist when the caller's request requires detailed government scheme eligibility evaluation, document checklist verification, or scheme benefit lookups (e.g. PM Kisan, Jan Dhan, Sukanya Samriddhi, Mudra Loan, Atal Pension).
+
+        Use this tool ONLY when the user's request needs a government scheme specialist.
+
+        Args:
+            reason: Short description of why handoff is needed (e.g. 'Caller asked for PM Kisan document checklist').
+        """
+        logger.info(
+            f"Handing off conversation to Government Scheme Specialist. Reason: {reason}"
+        )
+        if context and hasattr(context, "session") and context.session:
+            context.session.update_agent(scheme_specialist_instance)
+        self.completed_objective = True
+        return "Conversation successfully transferred to Government Scheme Specialist. Specialist is now active."
+
+
     async def check_scheme_eligibility_and_docs(
         self,
         context: RunContext,
@@ -303,7 +411,11 @@ server = AgentServer()
 
 
 def prewarm(proc: JobProcess):
-    proc.userdata["vad"] = silero.VAD.load()
+    proc.userdata["vad"] = silero.VAD.load(
+        min_speech_duration=0.1,
+        min_silence_duration=0.3,
+        prefix_padding_duration=0.2,
+    )
     init_db()
 
 
@@ -332,8 +444,8 @@ async def my_agent(ctx: JobContext):
             "true",
             "1",
         ) and os.environ.get("GOOGLE_API_KEY"):
-            llm_instance = google.LLM(model="gemini-2.0-flash")
-            logger.info("Using Google Gemini LLM (gemini-2.0-flash)")
+            llm_instance = google.LLM(model="gemini-1.5-flash")
+            logger.info("Using Google Gemini LLM (gemini-1.5-flash)")
         else:
             llm_instance = inference.LLM(model="openai/gpt-4o-mini")
             logger.info("Using LiveKit Cloud Inference LLM (openai/gpt-4o-mini)")
@@ -362,9 +474,9 @@ async def my_agent(ctx: JobContext):
                 voice="Anisha",
                 locale="en-IN",
                 style="Conversation",
-                tokenizer=tokenize.basic.SentenceTokenizer(min_sentence_len=15),
+                tokenizer=tokenize.basic.SentenceTokenizer(min_sentence_len=5),
                 text_pacing=False,
-                min_buffer_size=3,
+                min_buffer_size=1,
             ),
             turn_detection=EnglishModel(),
             vad=ctx.proc.userdata["vad"],
@@ -415,12 +527,12 @@ async def my_agent(ctx: JobContext):
                 f"If you don't wish to receive these reminder calls, please let me know anytime. How can I help you with your application today?'"
             )
             try:
-                session.generate_reply(instructions=greeting_instructions)
+                await session.generate_reply(instructions=greeting_instructions)
             except Exception as e:
                 logger.error(f"Could not generate initial greeting reply: {e}")
         else:
             try:
-                session.generate_reply(
+                await session.generate_reply(
                     instructions=(
                         "This is an outbound call. Open the call in 2 short sentences: "
                         "1) Introduce yourself as Anisha calling from Voice of Bharat. "
